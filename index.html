@@ -3,251 +3,111 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>ZenChain NFT Gallery — Portable</title>
+<title>ZenChain NFT Gallery</title>
 <style>
-  :root{--bg:#0b0b0d;--card:#111216;--accent:#7c4dff;--muted:#9aa0a6;--glass:rgba(255,255,255,0.03)}
-  *{box-sizing:border-box}
-  body{margin:0;font-family:Inter,system-ui,Arial,Helvetica,sans-serif;background:var(--bg);color:#fff;-webkit-font-smoothing:antialiased}
-  header{padding:18px;text-align:center;background:linear-gradient(90deg,#070709,#0d0d11)}
-  .brand{font-weight:700;font-size:18px}
-  .controls{display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap;margin-top:12px}
-  input{padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:#070708;color:#fff;min-width:260px}
-  button{padding:10px 14px;border-radius:10px;border:none;background:var(--accent);color:#fff;cursor:pointer}
-  button:disabled{opacity:.6;cursor:default}
-  .note{color:var(--muted);text-align:center;padding:10px 16px}
-  main{padding:18px;max-width:1200px;margin:0 auto}
-  .progress{color:var(--muted);text-align:center;margin-bottom:12px}
-  .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
-  .card{background:var(--card);border-radius:12px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,0.6);display:flex;flex-direction:column;min-height:320px}
-  .thumb{width:100%;height:220px;object-fit:cover}
-  .info{padding:12px;flex:1;display:flex;flex-direction:column}
-  .name{font-weight:600;margin-bottom:6px}
-  .meta{font-size:13px;color:var(--muted);margin-top:auto;word-break:break-word}
-  .collection{padding:10px 14px;background:linear-gradient(90deg, rgba(255,255,255,0.02), transparent);border-radius:10px;margin-bottom:12px;display:flex;gap:10px;align-items:center}
-  footer{padding:18px;text-align:center;color:var(--muted)}
-  @media(max-width:420px){ .thumb{height:160px} }
+  :root{--bg:#0f0f12;--card:#141416;--accent:#7c4dff;--muted:#9aa0a6}
+  body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:#fff}
+  header{padding:20px;text-align:center;background:#0c0c0e}
+  .controls{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+  input,button{padding:10px;border-radius:10px;border:none}
+  input{background:#0b0b0d;color:#fff;border:1px solid rgba(255,255,255,0.1)}
+  button{background:var(--accent);color:#fff;cursor:pointer}
+  .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;padding:18px}
+  .card{background:var(--card);border-radius:12px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,0.5)}
+  .thumb{width:100%;height:200px;object-fit:cover}
+  .info{padding:12px}
+  .name{font-weight:600}
+  .meta{font-size:13px;color:var(--muted)}
 </style>
 </head>
 <body>
 <header>
-  <div class="brand">ZenChain NFT Gallery — Portable (Testnet)</div>
+  <h2>ZenChain NFT Gallery (Testnet)</h2>
   <div class="controls">
-    <input id="addr" placeholder="Enter wallet address (0x...)" />
-    <button id="btn">Scan Preset</button>
-    <button id="btn-scan-all">Scan All</button>
+    <input id="addr" placeholder="Wallet Address" />
+    <button id="btn">Scan All</button>
   </div>
-  <div class="note">Portable single-file viewer. Uses ZenChain Testnet via OnFinality RPC. If metadata fails (CORS), try opening via a local server.</div>
 </header>
-
 <main>
-  <div id="status" class="progress"></div>
-  <div id="collections"></div>
   <div id="gallery" class="gallery"></div>
 </main>
-
-<footer>Built-for-demo • Scans enumerable ERC721 and falls back to Transfer logs.</footer>
-
-<!-- Ethers.js CDN -->
 <script src="https://cdn.jsdelivr.net/npm/ethers@6.6.0/dist/ethers.min.js"></script>
-
 <script>
-/*
-  Portable Multi-Contract NFT Gallery (single file)
-  - RPC: zenchain-testnet via onfinality
-  - Scans a preset list of contracts; you can add more below
-  - If opened via file:// some fetches may be blocked by CORS
-*/
-
 const RPC = 'https://zenchain-testnet.api.onfinality.io/public';
 const provider = new ethers.JsonRpcProvider(RPC);
 
-// Minimal ERC-721 ABI (Enumerable + tokenURI + ownerOf)
+// Daftar kontrak NFT populer di ZenChain Testnet
+const NFT_CONTRACTS = [
+  "0x5a9525389B2c53c56BC3a2e4Fcdb4DC88326550d", // Sample Zentrace NFT
+  // tambahkan kontrak NFT lain di sini
+];
+
 const ERC721_ABI = [
   'function balanceOf(address owner) view returns (uint256)',
   'function tokenOfOwnerByIndex(address owner, uint256 index) view returns (uint256)',
-  'function tokenURI(uint256 tokenId) view returns (string)',
-  'function ownerOf(uint256 tokenId) view returns (address)'
-];
-
-// Preset list of NFT contracts (add addresses separated by comma)
-const NFT_CONTRACTS = [
-  '0x5a9525389B2c53c56BC3a2e4Fcdb4DC88326550d' // Zentrace sample (testnet)
-  // add more addresses here if needed
+  'function tokenURI(uint256 tokenId) view returns (string)'
 ];
 
 const gallery = document.getElementById('gallery');
-const statusEl = document.getElementById('status');
-const collectionsEl = document.getElementById('collections');
-const btn = document.getElementById('btn');
-const btnAll = document.getElementById('btn-scan-all');
-const addrInput = document.getElementById('addr');
-
-btn.onclick = async () => {
-  const owner = addrInput.value.trim();
-  if (!owner || !ethers.isAddress(owner)) return alert('Please enter a valid wallet address');
-  await scanContracts([NFT_CONTRACTS[0]], owner);
-};
-
-btnAll.onclick = async () => {
-  const owner = addrInput.value.trim();
-  if (!owner || !ethers.isAddress(owner)) return alert('Please enter a valid wallet address');
-  await scanContracts(NFT_CONTRACTS, owner);
-};
-
-async function scanContracts(contractList, owner) {
+document.getElementById('btn').onclick = async () => {
   gallery.innerHTML = '';
-  collectionsEl.innerHTML = '';
-  status('Starting scan across ' + contractList.length + ' contract(s)...');
-  const allFound = [];
-
-  for (let i = 0; i < contractList.length; i++) {
-    const c = contractList[i];
-    status(`Scanning ${i+1}/${contractList.length} — ${short(c)} ...`);
+  const owner = document.getElementById('addr').value.trim();
+  if (!ethers.isAddress(owner)) return alert('Alamat wallet tidak valid');
+  
+  for (const contractAddr of NFT_CONTRACTS) {
     try {
-      const found = await scanSingleContract(c, owner);
-      if (found && found.length) {
-        allFound.push({ contract: c, items: found });
-        renderCollectionHeader(c, found.length);
-        for (const it of found) renderCard(it);
+      const contract = new ethers.Contract(contractAddr, ERC721_ABI, provider);
+      const balance = await contract.balanceOf(owner);
+      const n = Number(balance.toString());
+      if (n === 0) continue;
+
+      for (let i = 0; i < n; i++) {
+        loadNFT(contract, contractAddr, owner, i);
       }
     } catch (e) {
-      console.error('scan error', c, e);
+      console.error("Error kontrak:", contractAddr, e);
     }
   }
+};
 
-  if (allFound.length === 0) {
-    status('No NFTs found in selected contracts for this address.');
-  } else {
-    status(`Done. Collections with NFTs: ${allFound.length}`);
-  }
-}
-
-async function scanSingleContract(contractAddr, owner) {
-  const contract = new ethers.Contract(contractAddr, ERC721_ABI, provider);
-  const results = [];
-
-  // Try enumerable approach first
+async function loadNFT(contract, contractAddr, owner, index) {
   try {
-    const balanceBN = await contract.balanceOf(owner);
-    const balance = Number(balanceBN.toString());
-    if (balance > 0) {
-      for (let i = 0; i < balance; i++) {
-        try {
-          const tokenId = await contract.tokenOfOwnerByIndex(owner, i);
-          const meta = await fetchMetadata(contract, tokenId);
-          results.push({ contract: contractAddr, tokenId: tokenId.toString(), ...meta });
-        } catch (e) {
-          console.debug('tokenOfOwner error', e);
-        }
-      }
-      return results;
+    const tokenId = await contract.tokenOfOwnerByIndex(owner, index);
+    let uri = await contract.tokenURI(tokenId);
+    if (uri.startsWith('ipfs://')) {
+      uri = uri.replace('ipfs://', 'https://ipfs.io/ipfs/');
     }
-  } catch (e) {
-    console.debug('Enumerable failed', e);
-  }
-
-  // Fallback: scan Transfer events where 'to' == owner
-  try {
-    const TRANSFER_TOPIC = ethers.id('Transfer(address,address,uint256)');
-    const ownerTopic = ethers.hexZeroPad(owner, 32);
-    const logs = await provider.getLogs({
-      address: contractAddr,
-      fromBlock: 0,
-      toBlock: 'latest',
-      topics: [TRANSFER_TOPIC, null, ownerTopic]
-    });
-    if (logs && logs.length) {
-      const tokenIds = new Set();
-      for (const lg of logs) {
-        const t = lg.topics[3] || lg.data;
-        if (!t) continue;
-        // topics[3] is hex uint256
-        try {
-          const tokenId = ethers.BigInt(t).toString();
-          tokenIds.add(tokenId);
-        } catch (e) { console.debug('parse tokenId', e); }
-      }
-      for (const tid of tokenIds) {
-        try {
-          const currentOwner = await contract.ownerOf(tid);
-          if (currentOwner.toLowerCase() === owner.toLowerCase()) {
-            const meta = await fetchMetadata(contract, tid);
-            results.push({ contract: contractAddr, tokenId: tid, ...meta });
-          }
-        } catch (e) { console.debug('ownerOf check fail', e); }
-      }
-    }
-  } catch (e) { console.debug('event scan error', e); }
-
-  return results;
-}
-
-async function fetchMetadata(contract, tokenId) {
-  let uri = '';
-  try { uri = await contract.tokenURI(tokenId); } catch (e) { console.debug('tokenURI failed', e); }
-  if (!uri) return { name: `Token #${tokenId}`, image: placeholder(tokenId), description: '' };
-
-  if (uri.startsWith('ipfs://')) uri = uri.replace('ipfs://', 'https://ipfs.io/ipfs/');
-  if (uri.startsWith('data:application/json;base64,')) {
+    let meta;
     try {
-      const b = uri.split(',')[1];
-      const json = JSON.parse(atob(b));
-      return resolveMeta(json, tokenId);
-    } catch (e) { console.debug('base64 json error', e); }
+      const res = await fetch(uri);
+      meta = await res.json();
+    } catch {
+      meta = { name: 'NFT #' + tokenId, image: '' };
+    }
+    let img = meta?.image || '';
+    if (img.startsWith('ipfs://')) {
+      img = img.replace('ipfs://', 'https://ipfs.io/ipfs/');
+    }
+    if (!img) {
+      img = 'https://via.placeholder.com/400x400?text=No+Image';
+    }
+    renderCard(img, meta?.name || ('Token #' + tokenId), tokenId, contractAddr);
+  } catch (err) {
+    console.error("NFT load error:", err);
   }
-  try {
-    // Note: fetching external metadata may be blocked by CORS when opened as file://
-    const resp = await fetch(uri);
-    const json = await resp.json();
-    return resolveMeta(json, tokenId);
-  } catch (e) {
-    console.debug('metadata fetch error', e);
-    return { name: `Token #${tokenId}`, image: placeholder(tokenId), description: '' };
-  }
 }
 
-function resolveMeta(json, tokenId) {
-  let image = json.image || json.image_url || '';
-  if (image && image.startsWith('ipfs://')) image = image.replace('ipfs://', 'https://ipfs.io/ipfs/');
-  if (!image) image = placeholder(tokenId);
-  const name = json.name || `Token #${tokenId}`;
-  const description = json.description || '';
-  return { name, image, description };
-}
-
-function placeholder(tokenId) {
-  return `https://via.placeholder.com/800x500?text=Token+${encodeURIComponent(tokenId)}`;
-}
-
-function renderCollectionHeader(contractAddr, count) {
-  const el = document.createElement('div');
-  el.className = 'collection';
-  el.style.margin = '12px 0';
-  el.style.padding = '10px';
-  el.style.borderRadius = '10px';
-  el.style.background = 'linear-gradient(90deg, rgba(255,255,255,0.02), transparent)';
-  el.innerHTML = `<div style="font-weight:600">Contract: ${short(contractAddr)}</div><div style="margin-left:auto;color:var(--muted)">${count} token(s)</div>`;
-  collectionsEl.appendChild(el);
-}
-
-function renderCard(item) {
+function renderCard(img, name, tokenId, contractAddr) {
   const card = document.createElement('div');
   card.className = 'card';
   card.innerHTML = `
-    <img class="thumb" src="${item.image}" alt="${escapeHtml(item.name)}" onerror="this.src='https://via.placeholder.com/800x500?text=Image+not+found'">
+    <img class="thumb" src="${img}" alt="${name}">
     <div class="info">
-      <div class="name">${escapeHtml(item.name)}</div>
-      <div class="meta">Contract: ${short(item.contract)}<br>ID: ${escapeHtml(item.tokenId)}</div>
+      <div class="name">${name}</div>
+      <div class="meta">ID: ${tokenId} <br>Contract: ${contractAddr}</div>
     </div>`;
   gallery.appendChild(card);
 }
-
-function status(t){ statusEl.innerText = t || ''; }
-function short(a){ return a.slice(0,8) + '...' + a.slice(-6); }
-function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'})[c]); }
-
-// Optional: allow Enter key
-addrInput.addEventListener('keydown', e => { if (e.key==='Enter'){ e.preventDefault(); btn.click(); } });
 </script>
 </body>
 </html>
